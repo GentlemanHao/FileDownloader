@@ -1,5 +1,14 @@
 package com.lbxtech.filedownloader.utils
 
-class FileUtil{
+import java.io.File
 
+object FileUtil {
+    fun fileExists(file: File?): Boolean {
+        file?.apply {
+            if (isFile) {
+                return exists()
+            }
+        }
+        return false
+    }
 }
