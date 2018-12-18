@@ -6,18 +6,9 @@
     android:orientation="vertical"
     tools:context=".activity.MainActivity">
 
-    <ProgressBar
-        android:id="@+id/pb_progress"
-        style="@android:style/Widget.ProgressBar.Horizontal"
+    <android.support.v7.widget.RecyclerView
+        android:id="@+id/downloadList"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:max="100"
-        android:padding="20dp" />
-
-    <Button
-        android:id="@+id/bt_start"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="start" />
+        android:layout_height="match_parent" />
 
 </LinearLayout>

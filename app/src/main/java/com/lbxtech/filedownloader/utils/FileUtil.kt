@@ -20,7 +20,7 @@ object FileUtil {
         return File(DOWNLOAD_PATH, getFileName(url))
     }
 
-    fun getFileName(url: String): String {
+    private fun getFileName(url: String): String {
         return url.substring(url.lastIndexOf("/") + 1)
     }
 }
