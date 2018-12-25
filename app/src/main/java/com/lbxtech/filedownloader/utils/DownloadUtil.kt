@@ -67,7 +67,13 @@ object DownloadUtil {
                 if (response.isSuccessful) {
 
                     if (info.length == 0L) {
-                        info.length = getFileLength(info.url)
+                        val length = getFileLength(info.url)
+                        if (length == 0L) {
+                            info.state = DownloadState.FAIL
+                            cancelDownload(info)
+                            return
+                        }
+                        info.length = length
                     }
 
                     val saveFile = FileUtil.getDownloadFile(info.url)
