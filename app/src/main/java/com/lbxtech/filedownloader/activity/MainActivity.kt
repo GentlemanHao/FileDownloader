@@ -12,6 +12,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ProgressBar
+import android.widget.TextView
 import com.lbxtech.filedownloader.R
 import com.lbxtech.filedownloader.bean.DownloadListener
 import com.lbxtech.filedownloader.bean.DownloadState
@@ -27,8 +28,11 @@ class MainActivity : AppCompatActivity() {
     private val list = arrayListOf(FileInfo(1, weChat), FileInfo(2, qq), FileInfo(3, aliPay))
     private var adapter: DownloadAdapter? = null
     private val handler = object : Handler(Looper.getMainLooper()) {
-        override fun handleMessage(msg: Message?) {
-            adapter?.notifyDataSetChanged()
+        override fun handleMessage(msg: Message) {
+            if (msg.what == 0) {
+                //adapter?.notifyItemChanged(msg.arg1)
+                adapter?.notifyDataSetChanged()
+            }
         }
     }
 
@@ -42,9 +46,16 @@ class MainActivity : AppCompatActivity() {
 
     private val downloadListener = object : DownloadListener {
         override fun onUpdate(fileInfo: FileInfo) {
+            /*list.forEachIndexed { position, info ->
+                if (info.id == fileInfo.id) {
+                    handler.sendMessage(Message.obtain().apply {
+                        what = 0
+                        arg1 = position
+                    })
+                }
+            }*/
             handler.sendEmptyMessage(0)
         }
-
     }
 
     inner class DownloadAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -64,20 +75,24 @@ class MainActivity : AppCompatActivity() {
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
             (holder as ViewHolder).apply {
                 val info = list[position]
-                pb.progress =
-                        if (info.length == 0L) 0 else (info.position * 100 / info.length).toInt()
+                pb.progress = info.progress.toInt()
+                tv.text = "${info.progress}%"
                 bt.text = when (info.state) {
                     DownloadState.SUCCESS -> "SUCCESS"
                     DownloadState.FAIL -> "FAIL"
                     DownloadState.PAUSE -> "PAUSE"
                     DownloadState.DOWNLOAD -> "DOWNLOAD"
                     DownloadState.WAIT -> "WAIT"
+                    DownloadState.UNDO -> "UNDO"
                 }
                 bt.setOnClickListener {
                     when (info.state) {
                         DownloadState.SUCCESS -> info.state = DownloadState.SUCCESS
-                        DownloadState.DOWNLOAD -> DownloadUtil.cancleDownload(info)
-                        DownloadState.WAIT, DownloadState.FAIL, DownloadState.PAUSE -> {
+                        DownloadState.DOWNLOAD -> {
+                            info.state = DownloadState.PAUSE
+                            DownloadUtil.cancelDownload(info)
+                        }
+                        DownloadState.WAIT, DownloadState.FAIL, DownloadState.PAUSE, DownloadState.UNDO -> {
                             DownloadUtil.startDownLoad(info)
                         }
                     }
@@ -90,5 +105,6 @@ class MainActivity : AppCompatActivity() {
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val pb = view.findViewById<ProgressBar>(R.id.pb_progress)
         val bt = view.findViewById<Button>(R.id.bt_start)
+        val tv = view.findViewById<TextView>(R.id.tv_progress)
     }
 }

@@ -24,84 +24,98 @@ object DownloadUtil {
             .build()
 
     fun startDownLoad(info: FileInfo) {
-        if (downloadInfoMap.contains(info.id)) {
+        if (downloadInfoMap.contains(info)) {
             return
         }
         info.state = DownloadState.WAIT
         updateDownloadState(info)
-        downloadInfoMap.put(info.id, info)
+
+        downloadInfoMap[info.id] = info
 
         val downloadTask = DownloadTask(info)
         ThreadPoolManager.execute(downloadTask)
-        downloadTaskMap.put(info.id, downloadTask)
+
+        downloadTaskMap[info.id] = downloadTask
     }
 
-    fun cancleDownload(info: FileInfo) {
-        if (downloadInfoMap.contains(info.id)) {
-            info.state = DownloadState.PAUSE
+    fun cancelDownload(info: FileInfo) {
+        if (downloadInfoMap.contains(info)) {
             updateDownloadState(info)
-            downloadCallMap.get(info.id)?.cancel()
+
+            downloadCallMap[info.id]?.cancel()
             downloadCallMap.remove(info.id)
-            val task = downloadTaskMap.get(info.id)
-            if (task is Runnable) {
-                ThreadPoolManager.cancle(task)
-            }
+
+            ThreadPoolManager.cancle(downloadTaskMap[info.id] as Runnable)
             downloadTaskMap.remove(info.id)
+
             downloadInfoMap.remove(info.id)
         }
     }
 
     class DownloadTask(val info: FileInfo) : Runnable {
+
         override fun run() {
-            val downloadCall = okHttpClient.newCall(Request.Builder().url(info.url).apply {
-                if (info.position > 0) addHeader("RANGE", "bytes=${info.position}-")
-            }.build())
+            var inputStream: InputStream? = null
+            try {
+                val downloadCall = okHttpClient.newCall(Request.Builder().url(info.url).apply {
+                    if (info.position > 0) addHeader("RANGE", "bytes=${info.position}-")
+                }.build())
 
-            downloadCallMap.put(info.id, downloadCall)
+                downloadCallMap[info.id] = downloadCall
 
-            val response = downloadCall.execute()
-            if (response.isSuccessful) {
+                val response = downloadCall.execute()
+                if (response.isSuccessful) {
 
-                if (info.length == 0L) {
-                    info.length = getFileLength(info.url)
-                }
+                    if (info.length == 0L) {
+                        info.length = getFileLength(info.url)
+                    }
 
-                val saveFile = FileUtil.getDownloadFile(info.url)
-                if (FileUtil.fileExists(saveFile) && saveFile.length() == info.length) {
-                    info.state = DownloadState.SUCCESS
-                    updateDownloadState(info)
-                    return
-                }
+                    val saveFile = FileUtil.getDownloadFile(info.url)
+                    if (FileUtil.fileExists(saveFile) && saveFile.length() == info.length) {
+                        info.state = DownloadState.SUCCESS
+                        info.position = info.length
+                        info.progress = 100
+                        updateDownloadState(info)
+                        return
+                    }
 
-                info.state = DownloadState.DOWNLOAD
+                    info.state = DownloadState.DOWNLOAD
 
-                var inputStream: InputStream? = null
-                try {
                     inputStream = response.body()?.byteStream() ?: return
+
                     val randomAccessFile = RandomAccessFile(saveFile, "rw")
                     randomAccessFile.seek(info.position)
+
+                    info.progress = info.position * 100 / info.length
+
                     val bytes = ByteArray(1024)
                     var len = inputStream.read(bytes)
+
                     while (len != -1) {
-                        if (info.state == DownloadState.PAUSE) {
-                            return
-                        }
                         randomAccessFile.write(bytes, 0, len)
-                        info.position += len
                         len = inputStream.read(bytes)
-                        updateDownloadState(info)
+                        info.position += len
+
+                        val tmp = info.position * 100 / info.length
+                        if (info.progress != tmp) {
+                            info.progress = tmp
+                            updateDownloadState(info)
+                        }
                     }
                     info.state = DownloadState.SUCCESS
+                    info.progress = 100
                     updateDownloadState(info)
-                } catch (e: IOException) {
+                } else {
                     info.state = DownloadState.FAIL
-                    updateDownloadState(info)
-                } finally {
-                    inputStream?.close()
+                    cancelDownload(info)
                 }
-            } else {
-                info.state = DownloadState.FAIL
-                updateDownloadState(info)
+            } catch (e: IOException) {
+                if (info.state != DownloadState.PAUSE) {
+                    info.state = DownloadState.FAIL
+                    cancelDownload(info)
+                }
+            } finally {
+                inputStream?.close()
             }
         }
     }
